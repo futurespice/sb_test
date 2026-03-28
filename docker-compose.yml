@@ -1,0 +1,76 @@
+version: '3.8'
+
+x-django-env: &django-env
+  env_file:
+    - .env
+  environment:
+    DB_HOST: db
+    DB_PORT: "5432"
+    DB_NAME: sb_db
+    DB_USER: sb_user
+    DB_PASSWORD: "12345678"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: sb_db
+      POSTGRES_USER: sb_user
+      POSTGRES_PASSWORD: "12345678"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sb_user -d sb_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # Отдельный сервис для миграций — запускается один раз до web.
+  # При горизонтальном масштабировании web-реплики не гоняют migrate параллельно.
+  migrate:
+    build: .
+    # flushexpiredtokens cleans up the JWT blacklist table on every deploy.
+    # Without this, the blacklist grows unboundedly and every auth request
+    # pays a JOIN cost on an ever-growing table.
+    # For production with high churn: add a cron that runs this daily.
+    command: >-
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py flushexpiredtokens"
+    <<: *django-env
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./media:/app/media
+      - ./static:/app/static
+    <<: *django-env
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    command: >
+      gunicorn core_project.wsgi:application
+      --bind 0.0.0.0:8000
+      --workers 4
+      --threads 2
+      --timeout 120
+      --access-logfile -
+      --error-logfile -
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
