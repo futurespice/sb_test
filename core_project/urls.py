@@ -5,6 +5,7 @@ from django.conf.urls.static import static
 from django.http import JsonResponse
 from django.db import connection
 from django.views.decorators.cache import cache_page
+from rest_framework.permissions import IsAdminUser
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
 
@@ -27,10 +28,18 @@ urlpatterns = [
     path('api/v1/', include('apps.exams.urls')),
     path('api/v1/', include('apps.proctoring.urls')),
 
-    # OpenAPI / Swagger
-    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
-    path('api/schema/swagger-ui/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
-    path('api/schema/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+    # OpenAPI / Swagger — закрыто за IsAdminUser в production
+    path('api/schema/', SpectacularAPIView.as_view(
+        permission_classes=[] if settings.DEBUG else [IsAdminUser],
+    ), name='schema'),
+    path('api/schema/swagger-ui/', SpectacularSwaggerView.as_view(
+        url_name='schema',
+        permission_classes=[] if settings.DEBUG else [IsAdminUser],
+    ), name='swagger-ui'),
+    path('api/schema/redoc/', SpectacularRedocView.as_view(
+        url_name='schema',
+        permission_classes=[] if settings.DEBUG else [IsAdminUser],
+    ), name='redoc'),
 ]
 
 # Media файлы через Django только в DEBUG-режиме.

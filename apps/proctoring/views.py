@@ -405,6 +405,8 @@ class StudentExamStartView(APIView):
 class StudentExamSubmitView(APIView):
     permission_classes = [IsStudent]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'exam_submit'
 
     def post(self, request, uuid):
         # select_related — один запрос для stream + exam + данных необходимых для валидации таймаута
@@ -459,6 +461,8 @@ class StudentExamSubmitView(APIView):
 class StudentUploadRecordingView(APIView):
     permission_classes = [IsStudent]
     parser_classes = [MultiPartParser, FormParser]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'recording_upload'
 
     def post(self, request, uuid):
         stream = get_object_or_404(

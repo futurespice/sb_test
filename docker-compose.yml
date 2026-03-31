@@ -6,17 +6,17 @@ x-django-env: &django-env
   environment:
     DB_HOST: db
     DB_PORT: "5432"
-    DB_NAME: sb_db
-    DB_USER: sb_user
-    DB_PASSWORD: "12345678"
+    DB_NAME: ${DB_NAME:-sb_db}
+    DB_USER: ${DB_USER:-sb_user}
+    DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
 
 services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: sb_db
-      POSTGRES_USER: sb_user
-      POSTGRES_PASSWORD: "12345678"
+      POSTGRES_DB: ${DB_NAME:-sb_db}
+      POSTGRES_USER: ${DB_USER:-sb_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

@@ -81,7 +81,7 @@ class AnswerSubmitSerializer(serializers.Serializer):
 
 
 class ExamSubmitSerializer(serializers.Serializer):
-    answers = AnswerSubmitSerializer(many=True)
+    answers = AnswerSubmitSerializer(many=True, max_length=200)
 
     def validate_answers(self, value: list) -> list:
         """Duplicate question_id in one submit would inflate score via bulk_create."""

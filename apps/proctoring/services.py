@@ -83,11 +83,19 @@ def submit_exam_answers(attempt: ExamAttempt, answers_data: list) -> ExamAttempt
     if answers_to_create:
         AnswerAttempt.objects.bulk_create(answers_to_create, ignore_conflicts=True)
 
-    attempt.score = total_score
-    attempt.grade = ExamAttempt.calculate_grade(total_score, exam.max_score)
+    # Пересчитываем из БД — ignore_conflicts может отбросить дубли, in-memory total_score будет неверен.
+    db_total = attempt.answers.aggregate(total=Sum('score_earned'))['total'] or 0
+    attempt.score = db_total
+    attempt.grade = ExamAttempt.calculate_grade(db_total, exam.max_score)
     attempt.status = ExamAttempt.Status.COMPLETED
     attempt.end_time = now()
     attempt.save(update_fields=['score', 'grade', 'status', 'end_time'])
+
+    logger.info(
+        'exam_submit attempt=%d stream=%d student=%d score=%d/%d grade=%d',
+        attempt.pk, stream.id, attempt.student_id,
+        attempt.score, exam.max_score, attempt.grade,
+    )
     return attempt
 
 
@@ -99,6 +107,7 @@ def manual_grade_answer(answer: AnswerAttempt, score_earned: int) -> ExamAttempt
     different answers of the same attempt simultaneously — without it,
     both would read the same stale total and the last writer wins.
     """
+    old_score = answer.score_earned
     answer.score_earned = score_earned
     answer.is_manually_graded = True
     answer.save(update_fields=['score_earned', 'is_manually_graded'])
@@ -116,6 +125,11 @@ def manual_grade_answer(answer: AnswerAttempt, score_earned: int) -> ExamAttempt
     attempt.grade = ExamAttempt.calculate_grade(total, attempt.stream.exam.max_score)
     attempt.save(update_fields=['score', 'grade'])
 
+    logger.info(
+        'manual_grade answer=%d question=%d attempt=%d score=%d->%d teacher=%d',
+        answer.pk, answer.question_id, attempt.pk,
+        old_score, score_earned, attempt.stream.exam.teacher_id,
+    )
     return attempt
 
 
@@ -153,4 +167,8 @@ def record_violation(attempt: ExamAttempt, violation_type: str) -> tuple[int, bo
         attempt.end_time = now()
         attempt.save(update_fields=['status', 'end_time'])
 
+    logger.info(
+        'proctoring_violation attempt=%d type=%s count=%d/%d terminated=%s',
+        attempt.pk, violation_type, violations_count, max_v, terminated,
+    )
     return violations_count, terminated

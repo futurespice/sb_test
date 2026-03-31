@@ -5,6 +5,7 @@ Django settings for core_project project.
 import os
 from pathlib import Path
 from datetime import timedelta
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -22,7 +23,9 @@ if sentry_dsn:
         profiles_sample_rate=float(os.environ.get('SENTRY_PROFILES_SAMPLE_RATE', '0.1')),
     )
 
-SECRET_KEY = os.environ.get('SECRET_KEY', 'unsafe-default-key')
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    raise ImproperlyConfigured('SECRET_KEY environment variable is not set.')
 DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1')
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
@@ -144,6 +147,9 @@ REST_FRAMEWORK = {
         'burst': '60/minute',
         'login': '10/minute',      # Custom scope for login endpoint
         'pdf_export': '10/minute', # PDF generation blocks a gunicorn worker ~2-5s
+        'register': '5/hour',
+        'exam_submit': '5/minute',
+        'recording_upload': '10/minute',
     },
     # FIXED: global pagination — no more unbounded list responses
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
